@@ -1,0 +1,116 @@
+---
+title: "VegSurveys2023"
+output: html_document
+date: "2023-08-08"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+importing data
+```{r}
+veg23 <- readxl::read_excel("/Volumes/Samsung_T5/BOBWHITE_DATA/Clean/VegSurveys2023.xlsx") %>%
+  janitor::clean_names() %>%
+  mutate(date = as.Date(date))
+
+veg23 %>%
+  view()
+```
+
+Some visuals
+```{r}
+veg23_summary <- veg23 %>% 
+  group_by(date, unit) %>%
+  summarize(mean_per_grasses = mean(percent_grasses),
+            mean_per_forbs = mean(percent_forbs),
+            mean_per_shrubs = mean(percent_shrubs),
+            mean_cm_grasses = mean(max_grasses_cm),
+            mean_cm_forbs = mean(max_forbs_cm),
+            mean_cm_shrubs = mean(max_shrubs_cm))
+
+veg23_summary %>%
+  ggplot(aes(date, mean_per_grasses)) +
+  geom_line() +
+  facet_wrap(~unit)
+
+veg23_summary %>%
+  ggplot(aes(date, mean_per_grasses)) +
+  geom_smooth()
+
+veg23_summary %>%
+  ggplot(aes(date, mean_per_forbs)) +
+  geom_line() +
+  facet_wrap(~unit)
+
+veg23_summary %>%
+  ggplot(aes(date, mean_per_forbs)) +
+  geom_smooth()
+
+veg23_summary %>%
+  ggplot(aes(date, mean_per_shrubs)) +
+  geom_line() +
+  facet_wrap(~unit)
+
+veg23_summary %>%
+  ggplot(aes(date, mean_per_shrubs)) +
+  geom_smooth()
+
+
+veg23_summary %>%
+  ggplot(aes(date, mean_cm_grasses)) +
+  geom_line() +
+  facet_wrap(~unit)
+
+veg23_summary %>%
+  ggplot(aes(date, mean_cm_grasses)) +
+  geom_smooth()
+
+veg23_summary %>%
+  ggplot(aes(date, mean_cm_forbs)) +
+  geom_line() +
+  facet_wrap(~unit)
+
+veg23_summary %>%
+  ggplot(aes(date, mean_cm_forbs)) +
+  geom_smooth()
+
+veg23_summary %>%
+  ggplot(aes(date, mean_cm_shrubs)) +
+  geom_line() +
+  facet_wrap(~unit)
+
+veg23_summary %>%
+  ggplot(aes(date, mean_cm_shrubs)) +
+  geom_smooth()
+```
+
+Pivoting Longer
+```{r}
+veg23_summary_percent <- veg23_summary %>%
+  select(date:mean_per_shrubs) %>%
+  pivot_longer(cols = mean_per_grasses:mean_per_shrubs, names_to = "measurement", values_to = "percent")
+
+# Define the color mapping
+color_mapping <- c("1" = "red", "2" = "blue", "3" = "orange", 
+                   "4" = "black", "5" = "green", "6" = "purple")
+
+# Plot
+veg23_summary_percent %>%
+  filter(measurement %in% "mean_per_grasses") %>%
+  mutate(unit = as.factor(unit)) %>%  # Convert unit to factor
+  ggplot(aes(date, percent, color = unit)) +
+  geom_line(aes(group = unit), linewidth = 1.5) +
+  scale_color_manual(values = color_mapping)
+
+```
+
+
