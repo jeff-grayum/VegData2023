@@ -16,6 +16,13 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
+```{r}
+library(nlme)
+library(lmerTest)
+library(lme4)
+```
+
+
 importing data
 ```{r}
 veg23 <- readxl::read_excel("/Volumes/Samsung_T5/BOBWHITE_DATA/Clean/VegSurveys2023.xlsx") %>%
@@ -99,18 +106,164 @@ veg23_summary_percent <- veg23_summary %>%
   select(date:mean_per_shrubs) %>%
   pivot_longer(cols = mean_per_grasses:mean_per_shrubs, names_to = "measurement", values_to = "percent")
 
-# Define the color mapping
-color_mapping <- c("1" = "red", "2" = "blue", "3" = "orange", 
-                   "4" = "black", "5" = "green", "6" = "purple")
 
 # Plot
 veg23_summary_percent %>%
   filter(measurement %in% "mean_per_grasses") %>%
   mutate(unit = as.factor(unit)) %>%  # Convert unit to factor
   ggplot(aes(date, percent, color = unit)) +
-  geom_line(aes(group = unit), linewidth = 1.5) +
-  scale_color_manual(values = color_mapping)
+  geom_line(aes(group = unit), linewidth = 1.2) +
+  labs(x = "Date",
+       y = "% cover of grasses",
+       title = "Mean percent ")
+
+veg23_summary_percent %>%
+  filter(measurement %in% "mean_per_forbs") %>%
+  mutate(unit = as.factor(unit)) %>%  # Convert unit to factor
+  ggplot(aes(date, percent, color = unit)) +
+  geom_line(aes(group = unit), linewidth = 1.2) 
+
+veg23_summary_percent %>%
+  filter(measurement %in% "mean_per_shrubs") %>%
+  mutate(unit = as.factor(unit)) %>%  # Convert unit to factor
+  ggplot(aes(date, percent, color = unit)) +
+  geom_line(aes(group = unit), linewidth = 1.2) 
 
 ```
 
+median instead
+```{r}
+veg23_summary_median <- veg23 %>% 
+  group_by(date, unit) %>%
+  summarize(med_per_grasses = median(percent_grasses),
+            med_per_forbs = median(percent_forbs),
+            med_per_shrubs = median(percent_shrubs),
+            med_cm_grasses = median(max_grasses_cm),
+            med_cm_forbs = median(max_forbs_cm),
+            med_cm_shrubs = median(max_shrubs_cm)) 
+
+veg23_summary_percent_median <- veg23_summary_median %>%
+  select(date:med_per_shrubs) %>%
+  pivot_longer(cols = med_per_grasses:med_per_shrubs, names_to = "measurement", values_to = "med_percent")
+
+veg23_summary_percent_median %>%
+  filter(measurement %in% "med_per_grasses") %>%
+  mutate(unit = as.factor(unit)) %>%  # Convert unit to factor
+  ggplot(aes(date, med_percent, color = unit)) +
+  geom_line(aes(group = unit), linewidth = 1.2) +
+  labs(x = "Date",
+       y = "% cover of grasses",
+       title = "Median percent ")
+
+```
+
+lets look at some distributions:
+```{r}
+veg23 %>%
+  select(date, percent_grasses) %>%
+  ggplot(aes(percent_grasses)) +
+  geom_histogram(bins= 20) +
+  facet_wrap(~ date) 
+
+veg23 %>%
+  select(date, percent_forbs) %>%
+  ggplot(aes(percent_forbs)) +
+  geom_histogram(bins = 20) +
+  facet_wrap
+
+veg23 %>%
+  select(date, percent_shrubs) %>%
+  ggplot(aes(percent_shrubs)) +
+  geom_histogram(bins = 20) +
+  facet_wrap(~ date)
+```
+
+
+```{r}
+veg23 %>%
+  gather(key = "Vegetation_Type", value = "Percentage", percent_grasses, percent_forbs, percent_shrubs) %>%
+  ggplot(aes(x = Percentage, fill = Vegetation_Type)) +
+  geom_histogram(binwidth = 5, position = "dodge") + 
+  facet_wrap(~date) +
+  labs(title = "Distribution of Ground Cover Percentages", x = "Percentage", y = "Count") +
+  theme_minimal()
+
+veg23 %>%
+  gather(key = "Vegetation_Type", value = "Height_cm", max_grasses_cm, max_forbs_cm, max_shrubs_cm) %>%
+  ggplot(aes(x = Vegetation_Type, y = Height_cm, fill = Vegetation_Type)) +
+  geom_violin() + 
+  labs(title = "Distribution of Maximum Heights", x = "Vegetation Type", y = "Height (cm)") +
+  facet_wrap(~ date) +
+  theme_minimal()
+
+veg23 %>%
+  ggplot(aes(x = date, y = percent_grasses)) +
+  geom_smooth() +
+  labs(title = "Trend of Ground Cover Percentage of Grasses Over Time", x = "Date", y = "Percentage") +
+  theme_minimal()
+
+veg_long <- veg23 %>%
+  gather(key = "Measurement_Type", value = "Value", percent_grasses, percent_forbs, percent_shrubs, max_grasses_cm, max_forbs_cm, max_shrubs_cm)
+
+
+anova_model <- aov(Value ~ Measurement_Type + Error(unit/date), data = veg_long)
+summary(anova_model)
+
+library(lme4)
+lmer_model <- lmer(Value ~ date + (1|unit), data = veg_long)
+summary(lmer_model)
+
+# Load necessary libraries
+library(dplyr)
+library(lubridate)
+
+# Create a reference data frame for burn dates of each unit
+burn_dates <- data.frame(
+  unit = 1:6,
+  burn_date = c(rep(ymd("2023-03-21"), 5), ymd("2023-04-17"))
+)
+
+# Join veg23 with burn_dates by unit
+veg23 <- veg23 %>%
+  left_join(burn_dates, by = "unit") %>%
+  
+  # Compute "days since fire"
+  mutate(days_since_fire = as.numeric(date - burn_date)) %>%
+  
+  # If you wish, you can drop the burn_date column afterwards
+  select(-burn_date)
+
+# View the head of the modified data frame to check
+veg23 %>%
+  view()
+
+
+
+#Here, we show rate of percent cover of grasses varies between units over time.
+grass_model <- lmer(percent_grasses ~ days_since_fire * unit + (1|unit), data = veg23)
+summary(grass_model)
+
+#percent cover of forbs varies between units over time
+forbs_model <- lmer(percent_forbs ~ days_since_fire * unit + (1|unit), data = veg23)
+summary(forbs_model)
+
+#percent cover of shrubs DOES NOT vary between units over time
+shrubs_model <- lmer(percent_shrubs ~ days_since_fire * unit + (1|unit), data = veg23)
+summary(shrubs_model)
+
+#height of grasses DOES NOT vary between units over time.
+grass_height_model <- lmer(max_grasses_cm ~ days_since_fire * unit + (1|unit), data = veg23)
+summary(grass_height_model)
+
+#height of forbs does vary between units over time.
+forbs_height_model <- lmer(max_forbs_cm ~ days_since_fire * unit + (1|unit), data = veg23)
+summary(forbs_height_model)
+
+#height of shrubs does vary between units over time.
+shrubs_height_model <- lmer(max_shrubs_cm ~ days_since_fire * unit + (1|unit), data = veg23)
+summary(shrubs_height_model)
+
+
+
+```
 
